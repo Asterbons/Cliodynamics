@@ -1,0 +1,129 @@
+import os
+import requests
+import io
+import zipfile
+import csv
+from dotenv import load_dotenv
+
+load_dotenv()
+
+token = os.getenv('DESTATIS_TOKEN')
+base_url = "https://www-genesis.destatis.de/genesisWS/rest/2020/"
+
+headers = {
+    'Content-Type': 'application/x-www-form-urlencoded',
+    'username': token,
+    'password': '' 
+}
+
+# Полный набор: специальности претендующие на элитный статус
+test_codes = {
+    'SF005': 'Klassische Philologie',
+    'SF021': 'Betriebswirtschaftslehre',
+    'SF042': 'Wirtschaftsrecht',
+    'SF068': 'Geschichte',
+    'SF127': 'Philosophie',
+    'SF129': 'Politikwissenschaft/Politologie',
+    'SF133': 'Medienk./Komm.-/Infowissenschaft',  # ab 08 zu SF303
+    'SF135': 'Rechtswissenschaft',
+    'SF148': 'Sozialwissenschaften',
+    'SF149': 'Soziologie',
+    'SF175': 'Volkswirtschaftslehre',
+    'SF178': 'Wirtschafts-/Sozialgeografie',
+    'SF182': 'Internationale Betriebswirtschaft/Management',
+    'SF183': 'Wirtschafts-/Sozialgeschichte',
+    'SF184': 'Wirtschaftswissenschaften',
+    'SF253': 'Sozialwesen',
+    'SF272': 'Alte Geschichte',
+    'SF275': 'Wissenschaftsgeschichte/Technikgeschichte',
+    'SF302': 'Medienwissenschaft',
+    'SF303': 'Kommunikationswissenschaft/Publizistik',
+    'SF304': 'Medienwirtschaft/Medienmanagement'
+}
+
+# Для поиска кода специальности в ffcsv формате
+def find_subject_code_position(header_row):
+    """Находит позицию колонки с кодом специальности в заголовке"""
+    for idx, field in enumerate(header_row):
+        # Ищем колонку, которая может содержать код специальности
+        # Обычно это что-то вроде "STAF01", "Studienfach", и т.д.
+        if 'STAF' in field.upper() or 'FACH' in field.upper():
+            return idx
+    return None
+
+def download_and_unzip(url, headers, payload):
+    """Скачивает и распаковывает файл из API"""
+    try:
+        response = requests.post(url + 'data/tablefile', headers=headers, data=payload)
+        if response.status_code == 200:
+            if response.content.startswith(b'Error'):
+                print(f"Ошибка в ответе сервера: {response.text[:100]}")
+                return None
+            with zipfile.ZipFile(io.BytesIO(response.content)) as z:
+                file_name = z.namelist()[0]
+                with z.open(file_name) as f: 
+                    return f.read().decode('utf-8')
+        else:
+            print(f"HTTP Error {response.status_code}")
+            return None
+    except Exception as e:
+        print(f"Ошибка запроса: {e}")
+        return None
+
+all_data_rows = []
+header_saved = False
+
+print(f"Запуск теста для {len(test_codes)} специальностей...")
+
+# Скачиваем полный датасет один раз
+print("Скачивание полного датасета...", end=" ", flush=True)
+
+payload = {
+    'name': '21311-0003',
+    'startyear': '2015',
+    'compress': 'true',
+    'format': 'ffcsv',
+    'language': 'de'
+}
+
+csv_text = download_and_unzip(base_url, headers, payload)
+
+if csv_text:
+    print("OK")
+    lines = csv_text.splitlines()
+    
+    # Находим заголовок (первая строка, не начинающаяся с '21311')
+    header_line = None
+    data_start_idx = 0
+    for idx, line in enumerate(lines):
+        if line.startswith('21311'):
+            data_start_idx = idx
+            if idx > 0:
+                header_line = lines[idx - 1]
+            break
+    
+    if header_line:
+        all_data_rows.append(header_line)
+        print(f"Заголовок найден: {header_line[:100]}...")
+    
+    # Фильтруем данные по нужным кодам специальностей
+    print(f"\nФильтрация по специальностям:")
+    for code, name in test_codes.items():
+        # Ищем строки, содержащие код специальности
+        # В формате ffcsv коды обычно разделены точкой с запятой
+        matching_rows = [line for line in lines[data_start_idx:] 
+                        if code in line]
+        
+        all_data_rows.extend(matching_rows)
+        print(f"  {name} ({code}): {len(matching_rows)} строк")
+    
+    # Сохраняем результат
+    if all_data_rows:
+        with open("data_students_test.csv", "w", encoding="utf-8") as f:
+            f.write("\n".join(all_data_rows))
+        print(f"\nФайл data_students_test.csv создан. Всего строк: {len(all_data_rows)}")
+        print(f"(включая заголовок: {len(all_data_rows)-1} строк данных)")
+    else:
+        print("\nОтфильтрованные данные не найдены.")
+else:
+    print("FAIL - данные не получены")
