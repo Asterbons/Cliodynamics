@@ -1,0 +1,14 @@
+Processing PSI v4 metrics with Debugging...
+  Master v2 rows: 54
+  CPI General series points: 58794
+  Food Index series points: 134
+  GDP Quarterly series points: 0
+Traceback (most recent call last):
+  File "C:\Users\citru\Desktop\proj\Cliodynamics\src\preprocessors\preprocessor_v4.py", line 142, in <module>
+    process_v4()
+  File "C:\Users\citru\Desktop\proj\Cliodynamics\src\preprocessors\preprocessor_v4.py", line 88, in process_v4
+    youth_annual = df_youth[df_youth['time_code'] == 'JAHR'].set_index(pd.to_datetime(df_youth['time'].astype(str) + '-01-01'))['value']
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\citru\AppData\Local\Programs\Python\Python311\Lib\site-packages\pandas\core\frame.py", line 6195, in set_index
+    raise ValueError(
+ValueError: Length mismatch: Expected 0 rows, received array of length 870

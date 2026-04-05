@@ -1,2 +1,6 @@
 .env
-.code-workspace
+.acled_tokens.json
+clinodym.code-workspace
+plan.md
+CLAUDE.md
+data/processed/*
