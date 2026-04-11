@@ -69,8 +69,9 @@ def calculate_weighted_psi(df: pd.DataFrame) -> pd.DataFrame:
     Returns:
         DataFrame with additional psi_weighted column if psi_index exists.
     """
-    if "psi_index" in df.columns:
-        df["psi_weighted"] = df["psi_index"] * (1 + df["mobilization_smooth"] / 100)
+    psi_col = "psi_v4" if "psi_v4" in df.columns else "psi_index"
+    if psi_col in df.columns:
+        df["psi_weighted"] = df[psi_col] * (1 + df["mobilization_smooth"] / 100)
     return df
 
 

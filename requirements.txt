@@ -1,0 +1,8 @@
+pandas
+numpy
+plotly
+matplotlib
+statsmodels
+requests
+python-dotenv
+pytrends

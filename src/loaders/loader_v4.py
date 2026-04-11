@@ -63,7 +63,9 @@ tables = [
     ("61111-0006", "data_food_prices.csv", "monatlich"), # Monthly Food
     ("81111-0001", "data_gdp_quarterly.csv", "vierteljährlich"), # Quarterly GDP
     ("12411-0005", "data_youth_annual.csv", "jährlich"),
-    ("71211-0001", "data_tax_revenue.csv", "vierteljährlich")
+    ("71211-0001", "data_tax_revenue.csv", "vierteljährlich"),
+    ("74111-0001", "data_civil_servants.csv", "jährlich"),  # Civil servants (state capacity)
+    ("12211-0009", "data_holders_raw.csv", "jährlich"),    # Holders (elite positions)
 ]
 
 for code, fname, scale in tables:
