@@ -58,9 +58,9 @@ csv_data_price_index = download_and_unzip(base_url, headers, payload_price_index
 if csv_data_wages:
     with open(DATA_RAW / "data_wages.csv", "w", encoding="utf-8") as f:
         f.write(csv_data_wages)
-    print("Success: data_wages.csv обновлен актуальными данными.")
+    print("Success: data_wages.csv updated.")
 
 if csv_data_price_index:
     with open(DATA_RAW / "data_price_index.csv", "w", encoding="utf-8") as f:
         f.write(csv_data_price_index)
-    print("Success: data_price_index.csv обновлен актуальными данными.")
+    print("Success: data_price_index.csv updated.")

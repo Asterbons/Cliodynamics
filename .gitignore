@@ -4,4 +4,5 @@ clinodym.code-workspace
 plan.md
 CLAUDE.md
 data/processed/*
-#output/*
+*test*
+*tmp*

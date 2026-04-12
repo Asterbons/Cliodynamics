@@ -23,7 +23,7 @@ headers = {
 }
 
 # Полный набор: специальности претендующие на элитный статус
-test_codes = {
+subject_codes = {
     'SF005': 'Klassische Philologie',
     'SF021': 'Betriebswirtschaftslehre',
     'SF042': 'Wirtschaftsrecht',
@@ -79,7 +79,7 @@ def download_and_unzip(url, headers, payload):
 all_data_rows = []
 header_saved = False
 
-print(f"Запуск теста для {len(test_codes)} специальностей...")
+print(f"Запуск теста для {len(subject_codes)} специальностей...")
 
 # Скачиваем полный датасет один раз
 print("Скачивание полного датасета...", end=" ", flush=True)
@@ -114,7 +114,7 @@ if csv_text:
     
     # Фильтруем данные по нужным кодам специальностей
     print(f"\nФильтрация по специальностям:")
-    for code, name in test_codes.items():
+    for code, name in subject_codes.items():
         # Ищем строки, содержащие код специальности
         # В формате ffcsv коды обычно разделены точкой с запятой
         matching_rows = [line for line in lines[data_start_idx:] 
@@ -125,9 +125,9 @@ if csv_text:
     
     # Сохраняем результат
     if all_data_rows:
-        with open(DATA_RAW / "data_students_test.csv", "w", encoding="utf-8") as f:
+        with open(DATA_RAW / "data_students.csv", "w", encoding="utf-8") as f:
             f.write("\n".join(all_data_rows))
-        print(f"\nФайл data_students_test.csv создан. Всего строк: {len(all_data_rows)}")
+        print(f"\nФайл data_students.csv создан. Всего строк: {len(all_data_rows)}")
         print(f"(включая заголовок: {len(all_data_rows)-1} строк данных)")
     else:
         print("\nОтфильтрованные данные не найдены.")

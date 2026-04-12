@@ -79,22 +79,26 @@ The project is designed to be run as a sequential pipeline:
 
 1. **Data Ingestion:** Fetch raw data from federal APIs.
    ```bash
-   python src/loaders/loader_v4.py
+   python src/loaders/load_rent_and_wages.py
+   python src/loaders/load_students.py
+   python src/loaders/load_economic_indicators.py
    ```
 2. **Preprocessing:** Clean, merge, and calculate the PSI.
    ```bash
-   python src/preprocessors/preprocessor_v4.py
+   python src/preprocessors/process_base_wages.py
+   python src/preprocessors/process_students.py
+   python src/preprocessors/process_final_psi.py
    ```
 3. **Visualization:** Generate interactive and static dashboards.
    ```bash
-   python src/analysis/visualize_v4.py
+   python src/analysis/generate_dashboard.py
    ```
 
 ### Optional: Mobilization Data
 The following scripts can be used to incorporate Google Trends data:
 ```bash
-python src/loaders/fetch_trends.py
-python src/analysis/process_and_merge_trends.py
+python src/loaders/load_google_trends.py
+python src/analysis/merge_trends.py
 ```
 
 ---
