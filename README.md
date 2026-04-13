@@ -24,7 +24,12 @@ This repository provides a complete data pipeline—from automated ingestion of 
 
 The Political Stress Index is calculated using a multi-factor composite formula:
 
-$$PSI = \text{rolling\_mean} \left( \frac{WealthPump \times ElitePressure \times MacroEcon \times FoodPump \times YouthBulge \times Strikes}{StateCapacity}, 12 \right)$$
+$$
+PSI = \mathrm{rolling\_mean}\!\left(
+  \frac{WealthPump \cdot ElitePressure \cdot MacroEcon \cdot FoodPump \cdot YouthBulge \cdot Strikes}{StateCapacity},
+  12
+\right)
+$$
 
 *Note: All components are normalized/indexed to ensure statistical comparability.*
 
