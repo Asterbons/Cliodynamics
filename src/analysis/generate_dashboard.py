@@ -132,8 +132,15 @@ def main():
     }).set_index('date')
     holders_monthly = holders_df['holders'].reindex(idx).interpolate(method='time').fillna(method='bfill').fillna(method='ffill')
     v2['holders'] = holders_monthly
+
+    # frustrated_fraction: annual graduates vs annual elite position openings
+    DROPOUT_RATE = 0.30
+    AVG_STUDY_YEARS = 5
+    TURNOVER_RATE = 0.05
+    annual_graduates = v2['elite_candidates'] * (1 - DROPOUT_RATE) / AVG_STUDY_YEARS
+    annual_openings = holders_monthly * TURNOVER_RATE
     v2['frustrated_fraction'] = np.clip(
-        (v2['elite_candidates'] - holders_monthly) / v2['elite_candidates'].replace(0, np.nan),
+        (annual_graduates - annual_openings) / annual_graduates.replace(0, np.nan),
         0, 1
     ).fillna(0)
     v2['elite_pressure'] = nm(v2['elite_candidates']) * (1 + v2['frustrated_fraction'])
@@ -179,25 +186,52 @@ def main():
     
     v2.to_csv(DATA_PROCESSED / 'master_cliodynamics_v4.csv')
 
+    # Load Studentflow (first-semester entrants, 21311-0012) for flow panel — optional
+    studentflow_ser = None
+    try:
+        sf_raw = pd.read_csv(DATA_RAW / 'data_studienanfaenger.csv', sep=';', decimal=',', low_memory=False)
+        # Sum all elite fields per year/semester
+        sf_raw['val'] = pd.to_numeric(sf_raw['value'].astype(str).str.replace(',', '.', regex=False), errors='coerce')
+        # Group by time (year or semester), sum across fields, annual-ise
+        sf_grouped = sf_raw.dropna(subset=['val']).groupby('time')['val'].sum()
+        # Convert time index to datetime; semester codes (e.g. 2022S → 2022-04, 2022W → 2022-10) or plain year
+        def parse_sf_time(t):
+            s = str(t)
+            if 'S' in s:   return pd.Timestamp(s[:4] + '-04-01')
+            if 'W' in s:   return pd.Timestamp(s[:4] + '-10-01')
+            return pd.Timestamp(s[:4] + '-01-01')
+        sf_idx = pd.DatetimeIndex([parse_sf_time(t) for t in sf_grouped.index])
+        studentflow_ser = pd.Series(sf_grouped.values, index=sf_idx).sort_index()
+        # If semi-annual (winter+summer), resample to annual sum
+        if (studentflow_ser.index.month != 1).any():
+            studentflow_ser = studentflow_ser.resample('YS').sum()
+        print(f"  Studentflow loaded: {len(studentflow_ser)} annual points")
+    except FileNotFoundError:
+        print("  data_studienanfaenger.csv not found — run load_studienanfaenger.py (load_studentflow) first. Flow panel will be skipped.")
+    except Exception as e:
+        print(f"  Studentflow load error: {e}")
+
     # Visual (DASHBOARD) using Plotly
     fig = make_subplots(
-        rows=5, cols=2,
+        rows=6, cols=2,
         shared_xaxes=False,
-        vertical_spacing=0.07,
+        vertical_spacing=0.06,
         horizontal_spacing=0.08,
         subplot_titles=(
             "POLITICAL STRESS INDEX (PSI) v4 - Germany",
             "Mass Mobilization Factors (M)", "Elite Pressure (E)",
+            "Elite Pipeline Flow — Studentflow (Annual Inflow)",
             "Macroeconomic Trends", "Demographic Context (Youth Bulge)",
             "State Institutional Stability (S)", None,
             "PSI FORECAST 2026–2027 (Instability Window)"
         ),
         specs=[[{"colspan": 2}, None],
                [{}, {}],
+               [{"colspan": 2}, None],
                [{}, {}],
                [{"colspan": 2}, None],
                [{"colspan": 2}, None]],
-        row_heights=[0.22, 0.18, 0.18, 0.18, 0.24]
+        row_heights=[0.20, 0.16, 0.14, 0.16, 0.14, 0.20]
     )
     
     # 1. PSI
@@ -230,56 +264,79 @@ def main():
         x=idx, y=v2['frustrated_fraction'], name='Frustrated Fraction', line=dict(color='crimson', dash='dash')
     ), row=2, col=2)
 
+    # 3. Elite Pipeline Flow — Studentflow
+    annual_graduates_est = v2['elite_candidates'] * (1 - 0.30) / 5
+    annual_openings_est  = v2['holders'] * 0.05
+    fig.add_trace(go.Scatter(
+        x=idx, y=annual_graduates_est,
+        name='Est. Annual Graduates (enrolled×0.7/5)',
+        line=dict(color='steelblue', width=2)
+    ), row=3, col=1)
+    fig.add_trace(go.Scatter(
+        x=idx, y=annual_openings_est,
+        name='Annual Elite Openings (holders×5%)',
+        line=dict(color='tomato', width=2, dash='dash')
+    ), row=3, col=1)
+    if studentflow_ser is not None:
+        fig.add_trace(go.Bar(
+            x=studentflow_ser.index, y=studentflow_ser.values,
+            name='Studentflow (new entrants/yr)',
+            marker_color='rgba(65,105,225,0.45)',
+            width=1000*60*60*24*300  # ~10 months wide bars
+        ), row=3, col=1)
+        # Estimated graduates from Studentflow: entrants × (1 - dropout)
+        sf_graduates = studentflow_ser * (1 - 0.30)
+        fig.add_trace(go.Scatter(
+            x=sf_graduates.index, y=sf_graduates.values,
+            name='Est. Graduates from Entrants (×0.7)',
+            line=dict(color='royalblue', width=2, dash='dot')
+        ), row=3, col=1)
+
     # 4. GDP
     fig.add_trace(go.Scatter(
         x=idx, y=v2['gdp_growth'], name='Real GDP Growth', line=dict(color='seagreen')
-    ), row=3, col=1)
+    ), row=4, col=1)
     fig.add_trace(go.Scatter(
         x=idx, y=v2['wage_real'].pct_change(12)*100, name='Real Wage Growth', line=dict(color='orange')
-    ), row=3, col=1)
+    ), row=4, col=1)
 
     # 5. Youth
     fig.add_trace(go.Scatter(
         x=idx, y=v2['youth_bulge'], name='Youth Bulge Index', line=dict(color='goldenrod'),
         fill='tozeroy', fillcolor='rgba(218, 165, 32, 0.1)'
-    ), row=3, col=2)
+    ), row=4, col=2)
 
     # 6. S
     fig.add_trace(go.Scatter(
         x=idx, y=v2['s_capacity'], name='Extraction Stability', line=dict(color='slateblue', width=3),
         fill='tozeroy', fillcolor='rgba(106, 90, 205, 0.1)'
-    ), row=4, col=1)
+    ), row=5, col=1)
 
     # 7. FORECAST panel
-    # Historical PSI on forecast panel
     fig.add_trace(go.Scatter(
         x=idx, y=v2['psi_v4'],
         name='PSI v4 (Historical)',
         line=dict(color='firebrick', width=3),
         showlegend=False
-    ), row=5, col=1)
-    # Forecast line
+    ), row=6, col=1)
     fig.add_trace(go.Scatter(
         x=fc_series.index, y=fc_series.values,
         name='PSI Forecast',
         line=dict(color='#FF6347', width=3, dash='dash')
-    ), row=5, col=1)
-    # Confidence band (upper)
+    ), row=6, col=1)
     fig.add_trace(go.Scatter(
         x=fc_upper.index, y=fc_upper.values,
         name='95% CI Upper',
         line=dict(width=0),
         showlegend=False
-    ), row=5, col=1)
-    # Confidence band (lower, filled to upper)
+    ), row=6, col=1)
     fig.add_trace(go.Scatter(
         x=fc_lower.index, y=fc_lower.values,
         name='95% Confidence Interval',
         line=dict(width=0),
         fill='tonexty',
         fillcolor='rgba(255, 99, 71, 0.15)'
-    ), row=5, col=1)
-    # Instability window shading (2026-06 to 2027-06)
+    ), row=6, col=1)
     fig.add_vrect(
         x0='2026-06-01', x1='2027-06-01',
         fillcolor='rgba(255, 0, 0, 0.08)',
@@ -287,34 +344,33 @@ def main():
         annotation_text='INSTABILITY WINDOW',
         annotation_position='top left',
         annotation_font=dict(size=14, color='red', family='Arial Black'),
-        row=5, col=1
+        row=6, col=1
     )
-    # Vertical line at present
     fig.add_vline(
         x=psi_hist.index[-1], line_width=2, line_dash='solid',
-        line_color='gray', row=5, col=1
+        line_color='gray', row=6, col=1
     )
     fig.add_annotation(
         x=psi_hist.index[-1], y=psi_hist.iloc[-1],
         text='NOW', showarrow=True, arrowhead=2,
         font=dict(size=12, color='gray'),
-        row=5, col=1
+        row=6, col=1
     )
 
     # Layout
     fig.update_layout(
         template='plotly_white',
-        height=1800,
+        height=2100,
         hovermode="x unified",
         showlegend=True,
         title_text="Dashboard: PSI v4 & Structural-Demographic Drivers — Germany",
         title_font_size=24
     )
-    
-    # Update axes specific logic
-    fig.update_yaxes(range=[0.8, 1.1], row=4, col=1)
-    fig.update_xaxes(title_text='', row=5, col=1)
-    fig.update_yaxes(title_text='PSI', row=5, col=1)
+
+    fig.update_yaxes(range=[0.8, 1.1], row=5, col=1)
+    fig.update_xaxes(title_text='', row=6, col=1)
+    fig.update_yaxes(title_text='PSI', row=6, col=1)
+    fig.update_yaxes(title_text='Persons/yr', row=3, col=1)
     
     html_out = OUTPUT_DIR / 'psi_v4_dashboard.html'
     fig.write_html(html_out)

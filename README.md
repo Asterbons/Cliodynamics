@@ -14,8 +14,10 @@ This repository provides a complete data pipeline—from automated ingestion of 
 
 ### Key Components of PSI v4:
 - **Wealth Pump:** Tracking the flow of wealth from labor to elites via rent-to-wage ratios.
-- **Elite Overproduction:** Quantifying the gap between elite candidates (students in status-seeking fields) and available holders (executive positions).
+- **Elite Overproduction:** Comparing annual estimated graduates from 13 elite fields against available elite position openings. `frustrated_fraction = max(0, graduates − openings) / graduates`, where `graduates = enrolled × 0.70 / 5` and `openings = holders × 0.05`.
+- **Studentflow:** Annual pipeline inflow of first-semester entrants (Destatis 21311-0012) — a leading indicator that predicts labour-market pressure ~5 years ahead.
 - **State Capacity:** Measuring the state's ability to absorb stress through tax revenue stability and public sector staffing.
+- **Youth Bulge:** Annual population share of ages 15–24 relative to the total population. `youth_bulge = (youth_pop / total_pop) / mean(youth_share)`.
 - **Mass Mobilization:** Integrating strike data and real-time interest via Google Trends as proxies for social unrest.
 
 ---
@@ -44,10 +46,10 @@ graph LR
 ```
 
 ### Data Sources
-- **Destatis (GENESIS API):** Wages, CPI, University enrollment, Demographics, Tax revenue, GDP, Public sector data.
+- **Destatis (GENESIS API):** Wages, CPI, University enrollment (21311-0003) + Studentflow entrants (21311-0012), Demographics, Tax revenue, GDP, Public sector data.
 - **WSI:** Strike records (Arbeitskampfbilanz).
 - **Google Trends:** Real-time mobilization signals.
-- **Mikrozensus:** Managerial employment data.
+- **Mikrozensus:** Managerial employment data (Führungskräfte).
 
 ---
 
@@ -80,7 +82,8 @@ The project is designed to be run as a sequential pipeline:
 1. **Data Ingestion:** Fetch raw data from federal APIs.
    ```bash
    python src/loaders/load_rent_and_wages.py
-   python src/loaders/load_students.py
+   python src/loaders/load_students.py           # enrolled stock (21311-0003)
+   python src/loaders/load_studienanfaenger.py   # Studentflow inflow (21311-0012)
    python src/loaders/load_economic_indicators.py
    ```
 2. **Preprocessing:** Clean, merge, and calculate the PSI.
@@ -89,13 +92,16 @@ The project is designed to be run as a sequential pipeline:
    python src/preprocessors/process_students.py
    python src/preprocessors/process_final_psi.py
    ```
-3. **Visualization:** Generate interactive and static dashboards.
+3. **Visualization:** Generate dashboards.
    ```bash
+   # Interactive HTML dashboard (opens in browser)
    python src/analysis/generate_dashboard.py
+
+   # Full Streamlit dashboard (raw + processed views)
+   streamlit run src/analysis/raw_data_dashboard.py
    ```
 
 ### Optional: Mobilization Data
-The following scripts can be used to incorporate Google Trends data:
 ```bash
 python src/loaders/load_google_trends.py
 python src/analysis/merge_trends.py
@@ -105,9 +111,10 @@ python src/analysis/merge_trends.py
 
 ## Analysis Artifacts
 
-The pipeline generates high-fidelity dashboards in the `output/` directory:
-- **`psi_v4_dashboard.html`**: An interactive Plotly dashboard showing all 5 panels of the analysis.
-- **`psi_v4_analysis.png`**: A static publication-ready visualization with the 2026-2027 instability forecast.
+The pipeline generates dashboards in the `output/` directory and via Streamlit:
+- **`psi_v4_dashboard.html`**: Interactive Plotly dashboard — 6 panels: PSI, Mass Mobilization, Elite Pressure, Elite Pipeline Flow (Studentflow), Macro/Youth, State Capacity, Forecast to 2027.
+- **`psi_v4_analysis.png`**: Static publication-ready visualization with the 2026–2027 instability forecast.
+- **Streamlit app** (`raw_data_dashboard.py`): Full interactive UI with Raw Data view (12 source tabs) and Processed Data view (8 PSI component tabs).
 
 ---
 

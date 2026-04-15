@@ -22,29 +22,21 @@ headers = {
     'password': '' 
 }
 
-# Полный набор: специальности претендующие на элитный статус
+# Специальности претендующие на элитный статус: Jura, Politik, BWL/VWL/Wirtschaft, Soziologie, Philosophie, Geschichte, Medien
 subject_codes = {
-    'SF005': 'Klassische Philologie',
-    'SF021': 'Betriebswirtschaftslehre',
-    'SF042': 'Wirtschaftsrecht',
-    'SF068': 'Geschichte',
-    'SF127': 'Philosophie',
-    'SF129': 'Politikwissenschaft/Politologie',
-    'SF133': 'Medienk./Komm.-/Infowissenschaft',  # ab 08 zu SF303
-    'SF135': 'Rechtswissenschaft',
-    'SF148': 'Sozialwissenschaften',
+    'SF135': 'Rechtswissenschaft',           # Jura
+    'SF129': 'Politikwissenschaft/Politologie',  # Politik
+    'SF021': 'Betriebswirtschaftslehre',     # BWL
+    'SF175': 'Volkswirtschaftslehre',        # VWL
+    'SF182': 'Internationale Betriebswirtschaft/Management',  # Wirtschaft
+    'SF184': 'Wirtschaftswissenschaften',    # Wirtschaft
     'SF149': 'Soziologie',
-    'SF175': 'Volkswirtschaftslehre',
-    'SF178': 'Wirtschafts-/Sozialgeografie',
-    'SF182': 'Internationale Betriebswirtschaft/Management',
-    'SF183': 'Wirtschafts-/Sozialgeschichte',
-    'SF184': 'Wirtschaftswissenschaften',
-    'SF253': 'Sozialwesen',
+    'SF127': 'Philosophie',
+    'SF068': 'Geschichte',
     'SF272': 'Alte Geschichte',
     'SF275': 'Wissenschaftsgeschichte/Technikgeschichte',
     'SF302': 'Medienwissenschaft',
     'SF303': 'Kommunikationswissenschaft/Publizistik',
-    'SF304': 'Medienwirtschaft/Medienmanagement'
 }
 
 # Для поиска кода специальности в ffcsv формате

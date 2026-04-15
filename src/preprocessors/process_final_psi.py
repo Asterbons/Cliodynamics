@@ -54,21 +54,44 @@ def process_v4():
     except:
         holders_auto = pd.DataFrame()
 
-    # 1. Youth
-    y_ser = y_raw[y_raw['2_variable_attribute_code'].str.contains('ALT01[5-9]|ALT02[0-4]', na=False)].groupby('time')['value'].sum()
-    y_df = pd.DataFrame({'date': [pd.to_datetime(str(t)[:4]+'-01-01') for t in y_ser.index], 'y_val': y_ser.values}).sort_values('date')
+    # 1. Youth (Relative Share approach)
+    y_youth = y_raw[y_raw['2_variable_attribute_code'].str.contains('ALT01[5-9]|ALT02[0-4]', na=False)].groupby('time')['value'].sum()
+    y_total = y_raw[y_raw['2_variable_attribute_label'] == 'Insgesamt'].groupby('time')['value'].sum()
+    y_share = y_youth / y_total
+    
+    y_df = pd.DataFrame({
+        'date': [pd.to_datetime(str(t)[:4]+'-01-01') for t in y_share.index], 
+        'y_val': y_share.values
+    }).sort_values('date')
+    
     v2 = pd.merge_asof(v2, y_df, on='date', direction='backward')
     v2['youth_bulge'] = v2['y_val'].interpolate().fillna(method='bfill')
+    # Normalize by mean to keep PSI scale consistent
     v2['youth_bulge'] /= v2['youth_bulge'].mean()
 
     # 2. Indicators
     v2 = v2.set_index('date')
     idx = v2.index
     
-    # Extract points using robust search
-    c_ser = get_pts(c_raw[c_raw.stack().astype(str).str.contains('Verbraucherpreisindex', na=False, case=False).unstack().any(axis=1)])
+    # Extract food CPI (CC13-01) from food prices file
     f_ser = get_pts(f_raw[f_raw['3_variable_attribute_code'] == 'CC13-01'])
-    g_ser = get_pts(g_raw[g_raw['value_variable_code'] == 'VGR014'])
+
+    # Compute overall CPI as mean of all 12 CC13 categories from food prices file
+    # (data_cpi_general.csv has German decimal strings that fail pd.to_numeric)
+    def build_overall_cpi(df):
+        df = df.copy()
+        mask = df.stack().astype(str).str.contains('DG|Deutschland insgesamt', na=False).unstack().any(axis=1)
+        df = df[mask] if mask.any() else df
+        def find_m(r):
+            for val in r:
+                if val in MON: return MON[val]
+            return 1
+        df['m_idx'] = df.apply(find_m, axis=1)
+        df['dt'] = pd.to_datetime(df['time'].astype(str).str[:4] + '-' + df['m_idx'].astype(str) + '-01')
+        df['val'] = pd.to_numeric(df['value'], errors='coerce')
+        return df.groupby('dt')['val'].mean().sort_index()
+    c_ser = build_overall_cpi(f_raw)
+    g_ser = get_pts(g_raw[(g_raw['value_variable_code'] == 'VGR014') & (g_raw['2_variable_attribute_code'] == 'VGRPVK')])
     t_ser = get_pts(t_raw)
 
     # Always initialize columns
@@ -99,14 +122,9 @@ def process_v4():
     # Composite state capacity = tax stability * civil servant capacity
     v2['s_capacity'] = s_tax * cs_norm
 
-    # 5. Strike data (Mass Mobilization)
-    strikes_df = pd.DataFrame({
-        'date': pd.to_datetime(strikes_raw['year'].astype(str) + '-07-01'),
-        'strike_days': strikes_raw['strike_days_k'].astype(float)
-    }).set_index('date')
-    # Distribute annual to monthly and interpolate
-    strike_monthly = strikes_df['strike_days'].reindex(idx).interpolate(method='time').fillna(method='bfill').fillna(method='ffill')
-    v2['strike_days'] = strike_monthly
+    # 5. Strike data (Mass Mobilization) — annual values, same value for all months in a year
+    strikes_annual = strikes_raw.set_index('year')['strike_days_k'].astype(float)
+    v2['strike_days'] = idx.year.map(strikes_annual)
 
     # 6. Holders modeling (Elite Overproduction Pressure)
     # Base: historical manual data
@@ -130,10 +148,12 @@ def process_v4():
         
         if not ha.empty:
             # Group by year and sum values for our target elite groups
-            ha_grouped = ha.groupby('time')['value'].sum().reset_index()
+            # Ensure numeric conversion to avoid string concatenation bug
+            ha['val'] = pd.to_numeric(ha['value'], errors='coerce').fillna(0)
+            ha_grouped = ha.groupby('time')['val'].sum().reset_index()
             ha_df = pd.DataFrame({
                 'date': pd.to_datetime(ha_grouped['time'].astype(str) + '-01-01'),
-                'holders': ha_grouped['value'].astype(float) * 1000
+                'holders': ha_grouped['val'].astype(float) * 1000
             }).set_index('date').dropna()
             
             # Update/Merge: prefer automated for overlapping years
@@ -142,10 +162,17 @@ def process_v4():
 
     holders_monthly = h_df['holders'].reindex(idx).interpolate(method='time').fillna(method='bfill').fillna(method='ffill')
     v2['holders'] = holders_monthly
-    # frustrated_fraction: share of elite candidates who cannot find elite positions
-    # max(0, candidates - holders) / candidates
+
+    # frustrated_fraction: annual graduates vs annual elite position openings
+    # Graduates = enrolled × (1 - dropout_rate) / avg_study_years
+    # Openings   = total holders × annual turnover rate
+    DROPOUT_RATE = 0.30   # 30% of enrolled students never graduate
+    AVG_STUDY_YEARS = 5   # avg years to degree (Bachelor + Master in Germany)
+    TURNOVER_RATE = 0.05  # ~5% annual turnover of elite positions
+    annual_graduates = v2['elite_candidates'] * (1 - DROPOUT_RATE) / AVG_STUDY_YEARS
+    annual_openings = holders_monthly * TURNOVER_RATE
     v2['frustrated_fraction'] = np.clip(
-        (v2['elite_candidates'] - holders_monthly) / v2['elite_candidates'].replace(0, np.nan),
+        (annual_graduates - annual_openings) / annual_graduates.replace(0, np.nan),
         0, 1
     ).fillna(0)
     # elite_pressure replaces raw elite_candidates in PSI
