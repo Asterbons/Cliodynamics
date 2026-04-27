@@ -4,75 +4,143 @@
 [![Framework](https://img.shields.io/badge/theory-Cliodynamics-orange.svg)](https://peterturchin.com/cliodynamics/)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
-An advanced analytical framework applying Peter Turchin's Structural-Demographic Theory (SDT) to quantify and forecast political instability in modern Germany. This project digitizes complex socio-economic indicators into a unified Political Stress Index (PSI), identifying instability windows through 2027.
+This repository applies Structural-Demographic Theory (SDT) to modern Germany and builds a reproducible Political Stress Index (PSI) pipeline from federal statistics, strike data, and mobilization proxies.
+
+The current project state is ahead of the original README: the repository already contains a working end-to-end pipeline, processed datasets, a Plotly HTML dashboard, and a Streamlit explorer for both raw and processed data.
 
 ---
 
 ## Overview
 
-This repository provides a complete data pipeline—from automated ingestion of German federal statistics (Destatis) to high-fidelity predictive modeling. By synthesizing variables like elite overproduction, wealth inequality, and state capacity, the model forecasts the structural pressures that lead to social instability or political re-alignments.
+The project estimates structural political stress by combining six interacting blocks:
 
-### Key Components of PSI v4:
-- **Wealth Pump:** Tracking the flow of wealth from labor to elites via rent-to-wage ratios.
-- **Elite Overproduction:** Comparing annual estimated graduates from 13 elite fields against available elite position openings. `frustrated_fraction = max(0, graduates − openings) / graduates`, where `graduates = enrolled × 0.70 / 5` and `openings = holders × 0.05`.
-- **Studentflow:** Annual pipeline inflow of first-semester entrants (Destatis 21311-0012) — a leading indicator that predicts labour-market pressure ~5 years ahead.
-- **State Capacity:** Measuring the state's ability to absorb stress through tax revenue stability and public sector staffing.
-- **Youth Bulge:** Annual population share of ages 15–24 relative to the total population. `youth_bulge = (youth_pop / total_pop) / mean(youth_share)`.
-- **Mass Mobilization:** Integrating strike data and real-time interest via Google Trends as proxies for social unrest.
+- `wealth_pump`: pressure from rent and price growth relative to wages
+- `elite_pressure`: elite overproduction adjusted by estimated available elite openings
+- `m_econ`: macroeconomic stress via GDP growth and real wage deterioration
+- `food_pump`: food inflation relative to general CPI
+- `youth_bulge`: relative youth share in the population
+- `strike_days`: annual labor conflict intensity
+- `s_capacity`: state capacity via tax stability and civil servant staffing
+
+The current final series is stored in `data/processed/master_cliodynamics_final.csv`.
 
 ---
 
-## Theory and Methodology
+## PSI Formula
 
-The Political Stress Index is calculated using a multi-factor composite formula:
+The current implementation in `src/preprocessors/process_final_psi.py` computes:
 
 $$
-PSI = \mathrm{rolling\_mean}\!\left(
-  \frac{WealthPump \cdot ElitePressure \cdot MacroEcon \cdot FoodPump \cdot YouthBulge \cdot Strikes}{StateCapacity},
-  12
+\mathrm{psi} =
+\mathrm{rolling\_mean}_{12}
+\left(
+\frac{
+\mathrm{nm}(wealth\_pump)
+\cdot elite\_pressure
+\cdot \mathrm{nm}(m\_econ)
+\cdot \mathrm{nm}(food\_pump)
+\cdot \mathrm{nm}(youth\_bulge)
+\cdot \mathrm{nm}(strike\_days)
+}{
+s\_capacity
+}
 \right)
 $$
 
-*Note: All components are normalized/indexed to ensure statistical comparability.*
+where:
+
+- `elite_pressure = nm(elite_candidates) * (1 + frustrated_fraction)`
+- `frustrated_fraction = clip((annual_graduates - annual_openings) / annual_graduates, 0, 1)`
+- `annual_graduates = elite_candidates * 0.70 / 5`
+- `annual_openings = holders * 0.05`
+- `s_capacity = tax_stability * civil_servant_factor`
+
+`nm(...)` is the repository's internal min-max style normalization helper used to keep factors comparable.
 
 ---
 
-## Project Architecture
+## Repository Layout
 
-The pipeline follows a modular architecture for reliability and reproducibility:
-
-```mermaid
-graph LR
-    A[Loaders] -->|Raw CSV/API| B[data/raw/]
-    B --> C[Preprocessors]
-    C -->|Processed Dataset| D[data/processed/]
-    D --> E[Analysis/Viz]
-    E -->|Artifacts| F[output/]
+```text
+src/
+  loaders/         Raw data ingestion from Destatis and Google Trends
+  preprocessors/   Intermediate and final PSI dataset construction
+  analysis/        HTML dashboard, Streamlit app, and helper analysis scripts
+data/
+  raw/             Downloaded source tables and curated CSV inputs
+  processed/       master_cliodynamics*.csv outputs
+output/            Exported charts and dashboards
 ```
 
-### Data Sources
-- **Destatis (GENESIS API):** Wages, CPI, University enrollment (21311-0003) + Studentflow entrants (21311-0012), Demographics, Tax revenue, GDP, Public sector data.
-- **WSI:** Strike records (Arbeitskampfbilanz).
-- **Google Trends:** Real-time mobilization signals.
-- **Mikrozensus:** Managerial employment data (Führungskräfte).
+Key scripts:
+
+- `src/loaders/load_rent_and_wages.py`
+- `src/loaders/load_students.py`
+- `src/loaders/load_studienanfaenger.py`
+- `src/loaders/load_economic_indicators.py`
+- `src/loaders/load_google_trends.py`
+- `src/preprocessors/process_base_wages.py`
+- `src/preprocessors/process_students.py`
+- `src/preprocessors/process_final_psi.py`
+- `src/analysis/generate_dashboard.py`
+- `src/analysis/dashboard.py`
 
 ---
 
-## Installation and Setup
+## Data Sources
 
-### 1. Prerequisites
-- Python 3.9 or higher
-- Destatis GENESIS API credentials
+- Destatis GENESIS API: wages, CPI, GDP, tax revenue, demographics, higher education, civil servants, holders proxy
+- WSI strike data: annual lost working days
+- Google Trends: mobilization proxy for recent periods
+- Curated manual CSVs in `data/raw/` for strike and holders series where needed
 
-### 2. Clone and Install
+Relevant raw files currently present include:
+
+- `data/raw/data_students.csv`
+- `data/raw/data_studienanfaenger.csv`
+- `data/raw/data_tax_revenue.csv`
+- `data/raw/data_civil_servants.csv`
+- `data/raw/data_holders.csv`
+- `data/raw/data_holders_raw.csv`
+- `data/raw/data_strikes_wsi.csv`
+- `data/raw/google_trends_mobilization.csv`
+
+---
+
+## Installation
+
+### Prerequisites
+
+- Python 3.9+
+- Destatis GENESIS credentials
+
+### Install dependencies
+
 ```bash
-git clone https://github.com/your-username/Cliodynamics.git
-cd Cliodynamics
 pip install -r requirements.txt
 ```
 
-### 3. Environment Variables
-Create a `.env` file in the root directory:
+Current `requirements.txt` includes:
+
+- `pandas`
+- `numpy`
+- `plotly`
+- `matplotlib`
+- `statsmodels`
+- `requests`
+- `python-dotenv`
+- `pytrends`
+
+If you want to use the Streamlit dashboard, install it separately:
+
+```bash
+pip install streamlit
+```
+
+### Environment variables
+
+Create `.env` in the repository root:
+
 ```env
 DESTATIS_USER=your_username
 DESTATIS_PASSWORD=your_password
@@ -80,55 +148,84 @@ DESTATIS_PASSWORD=your_password
 
 ---
 
-## Project Execution
+## Pipeline Execution
 
-The project is designed to be run as a sequential pipeline:
+Run the project in three stages.
 
-1. **Data Ingestion:** Fetch raw data from federal APIs.
-   ```bash
-   python src/loaders/load_rent_and_wages.py
-   python src/loaders/load_students.py           # enrolled stock (21311-0003)
-   python src/loaders/load_studienanfaenger.py   # Studentflow inflow (21311-0012)
-   python src/loaders/load_economic_indicators.py
-   ```
-2. **Preprocessing:** Clean, merge, and calculate the PSI.
-   ```bash
-   python src/preprocessors/process_base_wages.py
-   python src/preprocessors/process_students.py
-   python src/preprocessors/process_final_psi.py
-   ```
-3. **Visualization:** Generate dashboards.
-   ```bash
-   # Interactive HTML dashboard (opens in browser)
-   python src/analysis/generate_dashboard.py
+### 1. Load raw data
 
-   # Full Streamlit dashboard (raw + processed views)
-   streamlit run src/analysis/raw_data_dashboard.py
-   ```
-
-### Optional: Mobilization Data
 ```bash
+python src/loaders/load_rent_and_wages.py
+python src/loaders/load_students.py
+python src/loaders/load_studienanfaenger.py
+python src/loaders/load_economic_indicators.py
 python src/loaders/load_google_trends.py
 python src/analysis/merge_trends.py
 ```
 
+### 2. Build processed datasets
+
+```bash
+python src/preprocessors/process_base_wages.py
+python src/preprocessors/process_students.py
+python src/preprocessors/process_final_psi.py
+```
+
+Main outputs:
+
+- `data/processed/master_cliodynamics_v2.csv`
+- `data/processed/master_cliodynamics_v3.csv`
+- `data/processed/master_cliodynamics_final.csv`
+
+### 3. Generate visual outputs
+
+Static/HTML dashboard:
+
+```bash
+python src/analysis/generate_dashboard.py
+```
+
+Streamlit explorer:
+
+```bash
+streamlit run src/analysis/dashboard.py
+```
+
 ---
 
-## Analysis Artifacts
+## Current Outputs
 
-The pipeline generates dashboards in the `output/` directory and via Streamlit:
-- **`psi_v4_dashboard.html`**: Interactive Plotly dashboard — 6 panels: PSI, Mass Mobilization, Elite Pressure, Elite Pipeline Flow (Studentflow), Macro/Youth, State Capacity, Forecast to 2027.
-- **`psi_v4_analysis.png`**: Static publication-ready visualization with the 2026–2027 instability forecast.
-- **Streamlit app** (`raw_data_dashboard.py`): Full interactive UI with Raw Data view (12 source tabs) and Processed Data view (8 PSI component tabs).
+The repository already contains generated artifacts in `output/`:
+
+- `output/psi_dashboard.html`: main interactive Plotly dashboard
+- `output/psi_dashboard.png`: exported dashboard image
+- `output/cliodynamics_plot.png`: earlier static visualization
+- `output/seasonal_decomposition.png`
+- `output/wealth_pump_trend.png`
+
+### Charts
+
+![Food Stress Chart](output/food.png)
+![Tax Capacity Chart](output/tax.png)
+![Macro Stress Chart](output/macro.png)
+
+The Plotly dashboard includes:
+
+- historical PSI
+- factor panels for mobilization, elite pressure, macro stress, youth bulge, and state capacity
+- studentflow / elite pipeline panel
+- forecast through `2027-12`
+
+---
+
+## Notes on Current State
+
+- The old README referenced `raw_data_dashboard.py`; the active Streamlit app is `src/analysis/dashboard.py`.
+- The project is no longer just a concept or partial prototype; the full PSI pipeline is already computed and saved.
+- Holders, strikes, civil servants, studentflow, and forecast logic are already integrated into the current pipeline.
 
 ---
 
 ## License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
----
-
-## Scientific Context
-
-This work is an implementation of Cliodynamics, a transdisciplinary area of research that integrates historical macrosociology, cultural and social anthropology, and mathematical modeling of historical processes. It specifically utilizes the Structural-Demographic Theory (SDT) developed by Jack Goldstone and Peter Turchin.
+This project is licensed under the MIT License. See [LICENSE](LICENSE).

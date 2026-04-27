@@ -35,8 +35,8 @@ def nm(s):
     mi, ma = v.min(), v.max()
     return (v - mi) / (ma - mi + 1e-9) + 0.1 if mi != ma else v*0 + 0.5
 
-def process_v4():
-    print("PSI v4 Pipeline (V2 -> V4 Final Stabilization)...")
+def process_final():
+    print("PSI Pipeline (V2 -> Final Stabilization)...")
     v2 = pd.read_csv(DATA_PROCESSED / 'master_cliodynamics_v2.csv', parse_dates=['date'])
     v2 = v2.sort_values('date').reset_index(drop=True)
 
@@ -180,13 +180,13 @@ def process_v4():
     v2['elite_pressure'] = nm(v2['elite_candidates']) * (1 + v2['frustrated_fraction'])
 
     # 7. PSI Total (uses elite_pressure instead of raw elite_candidates)
-    v2['psi_v4_raw'] = (nm(v2['wealth_pump']) * v2['elite_pressure'] * 
-                        nm(v2['m_econ']) * nm(v2['food_pump']) * nm(v2['youth_bulge']) *
-                        nm(v2['strike_days'])) / v2['s_capacity'].fillna(1.0)
-    v2['psi_v4'] = v2['psi_v4_raw'].rolling(12, center=True, min_periods=1).mean()
-    
-    v2.to_csv(DATA_PROCESSED / 'master_cliodynamics_v4.csv')
-    print("DONE. Processed v4.")
+    v2['psi_raw'] = (nm(v2['wealth_pump']) * v2['elite_pressure'] *
+                     nm(v2['m_econ']) * nm(v2['food_pump']) * nm(v2['youth_bulge']) *
+                     nm(v2['strike_days'])) / v2['s_capacity'].fillna(1.0)
+    v2['psi'] = v2['psi_raw'].rolling(12, center=True, min_periods=1).mean()
+
+    v2.to_csv(DATA_PROCESSED / 'master_cliodynamics_final.csv')
+    print("DONE. Processed final PSI dataset.")
 
 if __name__ == "__main__":
-    process_v4()
+    process_final()

@@ -3,7 +3,7 @@ Cliodynamics Dashboard — Streamlit
 Two views: Raw Data (one tab per source) and Processed Data (PSI components).
 
 Run with:
-    streamlit run src/analysis/raw_data_dashboard.py
+    streamlit run src/analysis/dashboard.py
 """
 
 import streamlit as st
@@ -257,8 +257,8 @@ def load_studentflow():
     return out
 
 @st.cache_data
-def load_processed_v4(mtime):
-    path = DATA_PROCESSED / "master_cliodynamics_v4.csv"
+def load_processed_final(mtime):
+    path = DATA_PROCESSED / "master_cliodynamics_final.csv"
     if not path.exists():
         return pd.DataFrame()
     df = pd.read_csv(path, parse_dates=["date"])
@@ -333,7 +333,7 @@ if "proc_tab" not in st.session_state:
 
 # ── header ─────────────────────────────────────────────────────────────────
 
-st.title("Cliodynamics — PSI v4 Dashboard")
+st.title("Cliodynamics — PSI Dashboard")
 st.caption("Political Stress Index for Germany · SDT / Turchin framework")
 
 # ── Floating Reload Button ─────────────────────────────────────────────────
@@ -955,20 +955,20 @@ elif view == "Processed Data":
         "Youth Bulge",
         "Strike Days",
         "State Capacity",
-        "PSI v4 Final",
+        "PSI Final",
     ]
 
     proc_tabs = st.tabs(PROC_TABS)
 
     # ── Load PSI data ───────────────────────────────────────────────────────
-    path_v4 = DATA_PROCESSED / "master_cliodynamics_v4.csv"
-    mtime_v4 = os.path.getmtime(path_v4) if path_v4.exists() else 0
+    path_final = DATA_PROCESSED / "master_cliodynamics_final.csv"
+    mtime_final = os.path.getmtime(path_final) if path_final.exists() else 0
     
     try:
-        psi_df = load_processed_v4(mtime_v4)
+        psi_df = load_processed_final(mtime_final)
     except Exception as e:
         st.error(
-            f"Error loading `data/processed/master_cliodynamics_v4.csv`: {e}  \n"
+            f"Error loading `data/processed/master_cliodynamics_final.csv`: {e}  \n"
             "Run the pipeline first: `python src/preprocessors/process_final_psi.py`"
         )
         st.stop()
@@ -1371,43 +1371,43 @@ elif view == "Processed Data":
             with st.expander("Processed data"):
                 st.dataframe(sc, width='stretch')
 
-    # ── PSI v4 Final ────────────────────────────────────────────────────────
+    # ── PSI Final ───────────────────────────────────────────────────────────
     with proc_tabs[7]:
-        st.subheader("PSI v4 — Political Stress Index (final)")
+        st.subheader("PSI — Political Stress Index (final)")
         st.markdown(
             "**Formula:**  \n"
-            "`psi_v4 = rolling_mean_12(nm(wealth_pump) × elite_pressure × nm(m_econ)`  \n"
+            "`psi = rolling_mean_12(nm(wealth_pump) × elite_pressure × nm(m_econ)`  \n"
             "`        × nm(food_pump) × nm(youth_bulge) × nm(strike_days) / s_capacity)`  \n\n"
             "Values approaching 1 = maximum modelled stress. "
             "The 12-month rolling mean smooths monthly noise."
         )
 
-        psi_cols = [c for c in ["psi_v4_raw", "psi_v4"] if c in psi_df.columns]
-        psi = psi_df[["date"] + psi_cols].dropna(subset=[c for c in ["psi_v4"] if c in psi_df.columns])
+        psi_cols = [c for c in ["psi_raw", "psi"] if c in psi_df.columns]
+        psi = psi_df[["date"] + psi_cols].dropna(subset=[c for c in ["psi"] if c in psi_df.columns])
 
         if psi.empty:
-            st.warning("No psi_v4 data found.")
+            st.warning("No psi data found.")
         else:
-            latest_psi = psi["psi_v4"].dropna().iloc[-1]
-            max_psi = psi["psi_v4"].max()
+            latest_psi = psi["psi"].dropna().iloc[-1]
+            max_psi = psi["psi"].max()
             c1, c2, c3, c4 = st.columns(4)
             c1.metric("Period start", str(psi["date"].min().date()))
             c2.metric("Period end", str(psi["date"].max().date()))
             c3.metric("All-time max", f"{max_psi:.4f}")
-            c4.metric("Latest PSI v4", f"{latest_psi:.4f}")
+            c4.metric("Latest PSI", f"{latest_psi:.4f}")
 
             fig = go.Figure()
-            if "psi_v4_raw" in psi.columns:
-                raw_s = psi[["date", "psi_v4_raw"]].dropna()
+            if "psi_raw" in psi.columns:
+                raw_s = psi[["date", "psi_raw"]].dropna()
                 fig.add_trace(go.Scatter(
-                    x=raw_s["date"], y=raw_s["psi_v4_raw"],
-                    mode="lines", name="PSI v4 raw",
+                    x=raw_s["date"], y=raw_s["psi_raw"],
+                    mode="lines", name="PSI raw",
                     line=dict(color="#636EFA", width=1), opacity=0.35
                 ))
-            psi_s = psi[["date", "psi_v4"]].dropna()
+            psi_s = psi[["date", "psi"]].dropna()
             fig.add_trace(go.Scatter(
-                x=psi_s["date"], y=psi_s["psi_v4"],
-                mode="lines", name="PSI v4 (12m rolling mean)",
+                x=psi_s["date"], y=psi_s["psi"],
+                mode="lines", name="PSI (12m rolling mean)",
                 line=dict(color="#EF553B", width=3),
                 fill="tozeroy", fillcolor="rgba(239,85,59,0.10)"
             ))
@@ -1423,8 +1423,8 @@ elif view == "Processed Data":
             )
 
             fig.update_layout(
-                title="Political Stress Index v4 — Germany",
-                xaxis_title="Date", yaxis_title="PSI v4",
+                title="Political Stress Index — Germany",
+                xaxis_title="Date", yaxis_title="PSI",
                 hovermode="x unified", height=500,
                 legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
                 margin=dict(t=60, b=40, l=60, r=20),
@@ -1435,7 +1435,7 @@ elif view == "Processed Data":
             # Component correlation heatmap
             component_cols = [c for c in [
                 "wealth_pump", "elite_pressure", "m_econ", "food_pump",
-                "youth_bulge", "strike_days", "s_capacity", "psi_v4"
+                "youth_bulge", "strike_days", "s_capacity", "psi"
             ] if c in psi_df.columns]
             corr_df = psi_df[component_cols].dropna()
             if not corr_df.empty and len(corr_df) > 5:
@@ -1456,5 +1456,5 @@ elif view == "Processed Data":
                 )
                 st.plotly_chart(fig2, width='stretch')
 
-            with st.expander("Full processed dataset (v4)"):
+            with st.expander("Full processed dataset"):
                 st.dataframe(psi_df, width='stretch')

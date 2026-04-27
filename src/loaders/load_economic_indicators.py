@@ -57,7 +57,7 @@ def download_table(table_code, filename, timescale=None):
         print(f"ERROR: {str(e)}")
         return False
 
-# Tables to download for PSI v4
+# Tables to download for the final PSI pipeline
 tables = [
     ("61111-0004", "data_cpi_general.csv", "monatlich"), # Monthly CPI
     ("61111-0006", "data_food_prices.csv", "monatlich"), # Monthly Food

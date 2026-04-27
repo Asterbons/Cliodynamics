@@ -1,3 +1,4 @@
+import argparse
 import pandas as pd
 import numpy as np
 import plotly.graph_objects as go
@@ -65,8 +66,8 @@ def nm(s):
     if mi == ma: return v * 0 + 0.5
     return (v - mi) / (ma - mi + 1e-9) + 0.1
 
-def main():
-    print("PSI v4 Pipeline (Building Output Dashboard)...")
+def main(show: bool = False):
+    print("PSI Pipeline (Building Output Dashboard)...")
     v2 = pd.read_csv(DATA_PROCESSED / 'master_cliodynamics_v2.csv', parse_dates=['date']).sort_values('date')
     v2 = v2.set_index('date')
     idx = v2.index
@@ -146,13 +147,13 @@ def main():
     v2['elite_pressure'] = nm(v2['elite_candidates']) * (1 + v2['frustrated_fraction'])
 
     # Stress model (uses elite_pressure instead of raw elite_candidates)
-    v2['psi_v4_raw'] = (nm(v2['wealth_pump']) * v2['elite_pressure'] * 
-                        nm(v2['m_econ']) * nm(v2['food_pump']) * nm(v2['youth_bulge']) *
-                        nm(v2['strike_days'])) / v2['s_capacity'].fillna(1.0)
-    v2['psi_v4'] = v2['psi_v4_raw'].rolling(12, center=True, min_periods=1).mean()
+    v2['psi_raw'] = (nm(v2['wealth_pump']) * v2['elite_pressure'] *
+                     nm(v2['m_econ']) * nm(v2['food_pump']) * nm(v2['youth_bulge']) *
+                     nm(v2['strike_days'])) / v2['s_capacity'].fillna(1.0)
+    v2['psi'] = v2['psi_raw'].rolling(12, center=True, min_periods=1).mean()
 
     # ═══ FORECAST PSI to 2027 ═══
-    psi_hist = v2['psi_v4'].dropna()
+    psi_hist = v2['psi'].dropna()
     forecast_start = psi_hist.index[-1] + pd.DateOffset(months=1)
     forecast_end = pd.Timestamp('2027-12-01')
     forecast_idx = pd.date_range(forecast_start, forecast_end, freq='MS')
@@ -184,7 +185,7 @@ def main():
         fc_upper = fc_series + 1.96 * residual_std
         fc_lower = (fc_series - 1.96 * residual_std).clip(lower=0)
     
-    v2.to_csv(DATA_PROCESSED / 'master_cliodynamics_v4.csv')
+    v2.to_csv(DATA_PROCESSED / 'master_cliodynamics_final.csv')
 
     # Load Studentflow (first-semester entrants, 21311-0012) for flow panel — optional
     studentflow_ser = None
@@ -218,7 +219,7 @@ def main():
         vertical_spacing=0.06,
         horizontal_spacing=0.08,
         subplot_titles=(
-            "POLITICAL STRESS INDEX (PSI) v4 - Germany",
+            "POLITICAL STRESS INDEX (PSI) - Germany",
             "Mass Mobilization Factors (M)", "Elite Pressure (E)",
             "Elite Pipeline Flow — Studentflow (Annual Inflow)",
             "Macroeconomic Trends", "Demographic Context (Youth Bulge)",
@@ -236,8 +237,8 @@ def main():
     
     # 1. PSI
     fig.add_trace(go.Scatter(
-        x=idx, y=v2['psi_v4'],
-        name='PSI v4',
+        x=idx, y=v2['psi'],
+        name='PSI',
         line=dict(color='firebrick', width=4),
         fill='tozeroy', fillcolor='rgba(178, 34, 34, 0.1)'
     ), row=1, col=1)
@@ -314,8 +315,8 @@ def main():
 
     # 7. FORECAST panel
     fig.add_trace(go.Scatter(
-        x=idx, y=v2['psi_v4'],
-        name='PSI v4 (Historical)',
+        x=idx, y=v2['psi'],
+        name='PSI (Historical)',
         line=dict(color='firebrick', width=3),
         showlegend=False
     ), row=6, col=1)
@@ -363,7 +364,7 @@ def main():
         height=2100,
         hovermode="x unified",
         showlegend=True,
-        title_text="Dashboard: PSI v4 & Structural-Demographic Drivers — Germany",
+        title_text="Dashboard: PSI & Structural-Demographic Drivers — Germany",
         title_font_size=24
     )
 
@@ -372,10 +373,18 @@ def main():
     fig.update_yaxes(title_text='PSI', row=6, col=1)
     fig.update_yaxes(title_text='Persons/yr', row=3, col=1)
     
-    html_out = OUTPUT_DIR / 'psi_v4_dashboard.html'
+    html_out = OUTPUT_DIR / 'psi_dashboard.html'
     fig.write_html(html_out)
     print(f"DONE: Visualized Dashboard securely in {html_out}")
-    fig.show()
+    if show:
+        fig.show()
 
 if __name__ == "__main__":
-    main()
+    parser = argparse.ArgumentParser(description="Build the PSI dashboard.")
+    parser.add_argument(
+        "--show",
+        action="store_true",
+        help="Open the interactive Plotly figure after writing the HTML file."
+    )
+    args = parser.parse_args()
+    main(show=args.show)

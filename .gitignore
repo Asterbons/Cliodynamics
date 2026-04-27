@@ -9,3 +9,5 @@ data/processed/*
 *.log
 scratch/
 __pycache__/
+greedy_anomaly_verification.md
+
