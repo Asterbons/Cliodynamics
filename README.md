@@ -218,14 +218,6 @@ The Plotly dashboard includes:
 
 ---
 
-## Notes on Current State
-
-- The old README referenced `raw_data_dashboard.py`; the active Streamlit app is `src/analysis/dashboard.py`.
-- The project is no longer just a concept or partial prototype; the full PSI pipeline is already computed and saved.
-- Holders, strikes, civil servants, studentflow, and forecast logic are already integrated into the current pipeline.
-
----
-
 ## License
 
 This project is licensed under the MIT License. See [LICENSE](LICENSE).
